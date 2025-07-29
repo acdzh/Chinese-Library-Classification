@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中国图书馆分类法预览</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .description {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            color: #666;
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top-color: #3498db;
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 15px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .tree-container {
+            margin-top: 20px;
+            overflow: auto;
+            max-height: calc(100vh - 200px);
+        }
+        .tree-view {
+            padding-left: 20px;
+        }
+        .tree-item {
+            margin-bottom: 5px;
+        }
+        .tree-node {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .tree-node:hover {
+            background-color: #f0f7ff;
+        }
+        .tree-node.active {
+            background-color: #e6f7ff;
+            border-left: 3px solid #1890ff;
+        }
+        .tree-toggle {
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: #666;
+            user-select: none;
+        }
+        .tree-toggle.empty {
+            visibility: hidden;
+        }
+        .tree-id {
+            font-weight: bold;
+            margin-right: 10px;
+            color: #1890ff;
+            min-width: 40px;
+        }
+        .tree-desc {
+            flex: 1;
+        }
+        .tree-children {
+            padding-left: 28px;
+            overflow: hidden;
+            max-height: 0;
+            transition: max-height 0.3s ease-out;
+        }
+        .tree-children.expanded {
+            max-height: 10000px;
+            transition: max-height 0.5s ease-in;
+        }
+        .search-container {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .search-input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        .search-input:focus {
+            border-color: #1890ff;
+        }
+        .search-button {
+            padding: 10px 20px;
+            background-color: #1890ff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        .search-button:hover {
+            background-color: #40a9ff;
+        }
+        .search-results {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            display: none;
+        }
+        .search-results.active {
+            display: block;
+        }
+        .result-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        .result-item:hover {
+            background-color: #f0f7ff;
+        }
+        .result-id {
+            font-weight: bold;
+            color: #1890ff;
+            margin-right: 10px;
+        }
+        .highlight {
+            background-color: #ffffc0;
+            padding: 0 2px;
+        }
+        .breadcrumb {
+            display: flex;
+            flex-wrap: wrap;
+            padding: 10px 0;
+            list-style: none;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            padding: 10px 15px;
+        }
+        .breadcrumb-item {
+            display: flex;
+            align-items: center;
+        }
+        .breadcrumb-item a {
+            color: #1890ff;
+            text-decoration: none;
+            padding: 0 5px;
+            cursor: pointer;
+        }
+        .breadcrumb-item a:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-item + .breadcrumb-item::before {
+            content: "/";
+            padding: 0 5px;
+            color: #6c757d;
+        }
+        .breadcrumb-item.active {
+            color: #6c757d;
+            padding: 0 5px;
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            h1 {
+                font-size: 24px;
+            }
+            .tree-node {
+                padding: 6px 8px;
+            }
+            .search-container {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>中国图书馆分类法预览</h1>
+            <p class="description">中国图书馆分类法 (Chinese Library Classification) 简称中图法 (CLC)</p>
+        </header>
+
+        <div class="search-container">
+            <input type="text" class="search-input" placeholder="搜索分类..." id="searchInput">
+            <button class="search-button" id="searchButton">搜索</button>
+        </div>
+
+        <div class="breadcrumb" id="breadcrumb">
+            <div class="breadcrumb-item active">首页</div>
+        </div>
+
+        <div class="search-results" id="searchResults"></div>
+
+        <div class="loading" id="loading">
+            <div class="loading-spinner"></div>
+            <p>正在加载数据...</p>
+        </div>
+
+        <div class="tree-container" id="treeContainer" style="display: none;">
+            <div class="tree-view" id="treeView"></div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let clcData = [];
+        let currentPath = [];
+
+        // 加载数据
+        async function loadData() {
+            try {
+                const response = await fetch('clc.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                clcData = await response.json();
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('treeContainer').style.display = 'block';
+                renderTree(clcData);
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                document.getElementById('loading').innerHTML = `
+                    <p>加载数据失败: ${error.message}</p>
+                    <button class="search-button" onclick="loadData()">重试</button>
+                `;
+            }
+        }
+
+        // 渲染树
+        function renderTree(data, parentElement = null) {
+            const treeView = parentElement || document.getElementById('treeView');
+            treeView.innerHTML = '';
+
+            data.forEach(item => {
+                const treeItem = document.createElement('div');
+                treeItem.className = 'tree-item';
+
+                const treeNode = document.createElement('div');
+                treeNode.className = 'tree-node';
+                treeNode.dataset.id = item.id;
+
+                const hasChildren = item.children && item.children.length > 0;
+
+                const treeToggle = document.createElement('div');
+                treeToggle.className = hasChildren ? 'tree-toggle' : 'tree-toggle empty';
+                treeToggle.textContent = hasChildren ? '+' : '';
+                treeNode.appendChild(treeToggle);
+
+                const treeId = document.createElement('div');
+                treeId.className = 'tree-id';
+                treeId.textContent = item.id;
+                treeNode.appendChild(treeId);
+
+                const treeDesc = document.createElement('div');
+                treeDesc.className = 'tree-desc';
+                treeDesc.textContent = item.desc;
+                treeNode.appendChild(treeDesc);
+
+                treeItem.appendChild(treeNode);
+
+                if (hasChildren) {
+                    const treeChildren = document.createElement('div');
+                    treeChildren.className = 'tree-children';
+                    
+                    // 创建子节点容器
+                    const childrenContainer = document.createElement('div');
+                    childrenContainer.className = 'tree-view';
+                    treeChildren.appendChild(childrenContainer);
+                    
+                    treeItem.appendChild(treeChildren);
+
+                    // 点击展开/折叠
+                    treeToggle.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const isExpanded = treeChildren.classList.toggle('expanded');
+                        treeToggle.textContent = isExpanded ? '-' : '+';
+                        
+                        // 懒加载子节点
+                        if (isExpanded && childrenContainer.children.length === 0) {
+                            renderTree(item.children, childrenContainer);
+                        }
+                    });
+
+                    // 点击节点也可以展开/折叠
+                    treeNode.addEventListener('click', () => {
+                        const isExpanded = treeChildren.classList.toggle('expanded');
+                        treeToggle.textContent = isExpanded ? '-' : '+';
+                        
+                        // 更新面包屑
+                        updateBreadcrumb(item);
+                        
+                        // 懒加载子节点
+                        if (isExpanded && childrenContainer.children.length === 0) {
+                            renderTree(item.children, childrenContainer);
+                        }
+                    });
+                } else {
+                    // 叶子节点点击事件
+                    treeNode.addEventListener('click', () => {
+                        updateBreadcrumb(item);
+                    });
+                }
+
+                treeView.appendChild(treeItem);
+            });
+        }
+
+        // 更新面包屑
+        function updateBreadcrumb(item) {
+            // 查找当前节点的完整路径
+            const path = findPath(clcData, item.id);
+            if (path) {
+                currentPath = path;
+                renderBreadcrumb();
+            }
+        }
+
+        // 渲染面包屑
+        function renderBreadcrumb() {
+            const breadcrumb = document.getElementById('breadcrumb');
+            breadcrumb.innerHTML = '';
+            
+            // 添加首页
+            const homeItem = document.createElement('div');
+            homeItem.className = 'breadcrumb-item';
+            const homeLink = document.createElement('a');
+            homeLink.textContent = '首页';
+            homeLink.addEventListener('click', () => {
+                currentPath = [];
+                renderTree(clcData);
+                renderBreadcrumb();
+            });
+            homeItem.appendChild(homeLink);
+            breadcrumb.appendChild(homeItem);
+            
+            // 添加路径
+            currentPath.forEach((item, index) => {
+                const breadcrumbItem = document.createElement('div');
+                breadcrumbItem.className = 'breadcrumb-item';
+                
+                if (index === currentPath.length - 1) {
+                    // 最后一项是当前项
+                    breadcrumbItem.classList.add('active');
+                    breadcrumbItem.textContent = `${item.id} ${item.desc}`;
+                } else {
+                    const link = document.createElement('a');
+                    link.textContent = `${item.id} ${item.desc}`;
+                    link.addEventListener('click', () => {
+                        // 截取到当前点击的路径
+                        currentPath = currentPath.slice(0, index + 1);
+                        renderBreadcrumb();
+                        
+                        // 找到对应的数据并渲染
+                        let currentData = clcData;
+                        for (let i = 0; i <= index; i++) {
+                            if (i === index) {
+                                renderTree(currentData);
+                            } else if (currentData) {
+                                const found = currentData.find(d => d.id === currentPath[i].id);
+                                currentData = found && found.children ? found.children : null;
+                            }
+                        }
+                    });
+                    breadcrumbItem.appendChild(link);
+                }
+                
+                breadcrumb.appendChild(breadcrumbItem);
+            });
+        }
+
+        // 查找节点路径
+        function findPath(data, id, path = []) {
+            for (const item of data) {
+                // 创建新路径
+                const newPath = [...path, { id: item.id, desc: item.desc }];
+                
+                // 找到目标
+                if (item.id === id) {
+                    return newPath;
+                }
+                
+                // 递归查找子节点
+                if (item.children && item.children.length > 0) {
+                    const result = findPath(item.children, id, newPath);
+                    if (result) {
+                        return result;
+                    }
+                }
+            }
+            return null;
+        }
+
+        // 搜索功能
+        function setupSearch() {
+            const searchInput = document.getElementById('searchInput');
+            const searchButton = document.getElementById('searchButton');
+            const searchResults = document.getElementById('searchResults');
+            
+            // 搜索按钮点击事件
+            searchButton.addEventListener('click', () => {
+                performSearch();
+            });
+            
+            // 输入框回车事件
+            searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    performSearch();
+                }
+            });
+            
+            // 执行搜索
+            function performSearch() {
+                const query = searchInput.value.trim().toLowerCase();
+                if (!query) {
+                    searchResults.classList.remove('active');
+                    return;
+                }
+                
+                const results = searchInTree(clcData, query);
+                displaySearchResults(results, query);
+            }
+            
+            // 在树中搜索
+            function searchInTree(data, query, results = []) {
+                for (const item of data) {
+                    const idMatch = item.id.toLowerCase().includes(query);
+                    const descMatch = item.desc.toLowerCase().includes(query);
+                    
+                    if (idMatch || descMatch) {
+                        results.push({
+                            id: item.id,
+                            desc: item.desc,
+                            path: findPath(clcData, item.id)
+                        });
+                    }
+                    
+                    if (item.children && item.children.length > 0) {
+                        searchInTree(item.children, query, results);
+                    }
+                }
+                return results;
+            }
+            
+            // 显示搜索结果
+            function displaySearchResults(results, query) {
+                searchResults.innerHTML = '';
+                
+                if (results.length === 0) {
+                    searchResults.innerHTML = '<p>没有找到匹配的结果</p>';
+                    searchResults.classList.add('active');
+                    return;
+                }
+                
+                // 限制显示结果数量
+                const maxResults = 50;
+                const limitedResults = results.slice(0, maxResults);
+                
+                limitedResults.forEach(result => {
+                    const resultItem = document.createElement('div');
+                    resultItem.className = 'result-item';
+                    
+                    // 高亮显示匹配文本
+                    const highlightedId = highlightText(result.id, query);
+                    const highlightedDesc = highlightText(result.desc, query);
+                    
+                    resultItem.innerHTML = `
+                        <span class="result-id">${highlightedId}</span>
+                        <span>${highlightedDesc}</span>
+                    `;
+                    
+                    // 点击结果项导航到对应节点
+                    resultItem.addEventListener('click', () => {
+                        if (result.path) {
+                            currentPath = result.path;
+                            renderBreadcrumb();
+                            
+                            // 找到对应的数据并渲染
+                            let currentData = clcData;
+                            for (let i = 0; i < result.path.length - 1; i++) {
+                                if (currentData) {
+                                    const found = currentData.find(d => d.id === result.path[i].id);
+                                    currentData = found && found.children ? found.children : null;
+                                }
+                            }
+                            
+                            if (currentData) {
+                                renderTree(currentData);
+                                searchResults.classList.remove('active');
+                            }
+                        }
+                    });
+                    
+                    searchResults.appendChild(resultItem);
+                });
+                
+                // 如果结果被截断，显示提示
+                if (results.length > maxResults) {
+                    const moreResults = document.createElement('div');
+                    moreResults.className = 'more-results';
+                    moreResults.textContent = `显示前 ${maxResults} 条结果，共找到 ${results.length} 条匹配`;
+                    searchResults.appendChild(moreResults);
+                }
+                
+                searchResults.classList.add('active');
+            }
+            
+            // 高亮显示匹配文本
+            function highlightText(text, query) {
+                if (!query) return text;
+                
+                const regex = new RegExp(`(${query})`, 'gi');
+                return text.replace(regex, '<span class="highlight">$1</span>');
+            }
+        }
+
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            setupSearch();
+        });
+    </script>
+</body>
+</html>
